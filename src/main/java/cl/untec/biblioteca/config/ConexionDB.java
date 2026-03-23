@@ -1,29 +1,43 @@
 package cl.untec.biblioteca.config;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.util.Properties;
 
-// Centraliza la configuracion y entrega conexiones JDBC hacia H2.
 public class ConexionDB {
 
-    private static final String URL = "jdbc:h2:~/biblioteca_untec_v2;AUTO_SERVER=TRUE";
-    private static final String USER = "sa";
-    private static final String PASSWORD = "";
+    private static final String DRIVER;
+    private static final String URL;
+    private static final String USER;
+    private static final String PASSWORD;
 
     static {
-        try {
-            // Carga explicita del driver para asegurar compatibilidad en distintos contenedores.
-            Class.forName("org.h2.Driver");
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException("No se pudo cargar el driver de H2", e);
+        try (InputStream input = ConexionDB.class.getClassLoader().getResourceAsStream("db.properties")) {
+            if (input == null) {
+                throw new RuntimeException("No se encontró el archivo db.properties");
+            }
+
+            Properties properties = new Properties();
+            properties.load(input);
+
+            DRIVER = properties.getProperty("db.driver");
+            URL = properties.getProperty("db.url");
+            USER = properties.getProperty("db.user");
+            PASSWORD = properties.getProperty("db.password");
+
+            Class.forName(DRIVER);
+
+        } catch (IOException | ClassNotFoundException e) {
+            throw new RuntimeException("Error cargando configuración de base de datos", e);
         }
     }
 
     private ConexionDB() {
     }
 
-    // Punto unico de acceso para obtener conexiones a la base de datos.
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }

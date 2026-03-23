@@ -33,11 +33,10 @@ public class LoginServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        String usuario = request.getParameter("usuario");
-        String password = request.getParameter("password");
+        String usuario = normalizar(request.getParameter("usuario"));
+        String password = normalizar(request.getParameter("password"));
 
-        if (usuario == null || usuario.trim().isEmpty()
-                || password == null || password.trim().isEmpty()) {
+        if (usuario.isEmpty() || password.isEmpty()) {
             // Validacion minima para evitar consultas innecesarias.
             request.setAttribute("error", "Debes completar usuario y contrasena");
             request.getRequestDispatcher("/index.jsp").forward(request, response);
@@ -47,7 +46,12 @@ public class LoginServlet extends HttpServlet {
         Usuario usuarioAutenticado = usuarioDAO.autenticar(usuario, password);
 
         if (usuarioAutenticado != null) {
-            HttpSession session = request.getSession();
+            HttpSession sessionAnterior = request.getSession(false);
+            if (sessionAnterior != null) {
+                sessionAnterior.invalidate();
+            }
+
+            HttpSession session = request.getSession(true);
             // Estos datos luego se usan en dashboard y control de sesion.
             session.setAttribute("usuarioLogueado", usuarioAutenticado.getUsername());
             session.setAttribute("nombreUsuario", usuarioAutenticado.getNombre());
@@ -58,5 +62,9 @@ public class LoginServlet extends HttpServlet {
             request.setAttribute("error", "Credenciales incorrectas");
             request.getRequestDispatcher("/index.jsp").forward(request, response);
         }
+    }
+
+    private String normalizar(String valor) {
+        return valor == null ? "" : valor.trim();
     }
 }

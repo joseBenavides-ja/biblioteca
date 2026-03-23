@@ -35,9 +35,8 @@ public class DashboardServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession(false);
-
-        if (session == null || session.getAttribute("usuarioLogueado") == null) {
+        HttpSession session = obtenerSesionAutenticada(request);
+        if (session == null) {
             response.sendRedirect(request.getContextPath() + "/index.jsp");
             return;
         }
@@ -70,9 +69,8 @@ public class DashboardServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        HttpSession session = request.getSession(false);
-
-        if (session == null || session.getAttribute("usuarioLogueado") == null) {
+        HttpSession session = obtenerSesionAutenticada(request);
+        if (session == null) {
             response.sendRedirect(request.getContextPath() + "/index.jsp");
             return;
         }
@@ -80,14 +78,23 @@ public class DashboardServlet extends HttpServlet {
         String accion = request.getParameter("accion");
 
         // Enruta la accion del formulario a su caso de uso correspondiente.
-        if ("agregar".equals(accion)) {
-            agregarLibro(request, session);
-        } else if ("prestar".equals(accion)) {
-            prestarLibro(request, session);
-        } else if ("regresar".equals(accion)) {
-            regresarLibro(request, session);
-        } else {
+        if (accion == null) {
             session.setAttribute("mensajeError", "Accion no valida.");
+        } else {
+            switch (accion) {
+                case "agregar":
+                    agregarLibro(request, session);
+                    break;
+                case "prestar":
+                    prestarLibro(request, session);
+                    break;
+                case "regresar":
+                    regresarLibro(request, session);
+                    break;
+                default:
+                    session.setAttribute("mensajeError", "Accion no valida.");
+                    break;
+            }
         }
 
         response.sendRedirect(request.getContextPath() + "/dashboard");
@@ -95,15 +102,12 @@ public class DashboardServlet extends HttpServlet {
 
     // Valida datos de entrada y crea un nuevo libro con su movimiento de ALTA.
     private void agregarLibro(HttpServletRequest request, HttpSession session) {
-        String titulo = request.getParameter("titulo");
-        String autor = request.getParameter("autor");
-        String serialInterno = request.getParameter("serialInterno");
-        String stockTotalStr = request.getParameter("stockTotal");
+        String titulo = normalizar(request.getParameter("titulo"));
+        String autor = normalizar(request.getParameter("autor"));
+        String serialInterno = normalizar(request.getParameter("serialInterno"));
+        String stockTotalStr = normalizar(request.getParameter("stockTotal"));
 
-        if (titulo == null || titulo.trim().isEmpty()
-                || autor == null || autor.trim().isEmpty()
-                || serialInterno == null || serialInterno.trim().isEmpty()
-                || stockTotalStr == null || stockTotalStr.trim().isEmpty()) {
+        if (titulo.isEmpty() || autor.isEmpty() || serialInterno.isEmpty() || stockTotalStr.isEmpty()) {
             session.setAttribute("mensajeError", "Debes completar todos los campos.");
             return;
         }
@@ -127,9 +131,9 @@ public class DashboardServlet extends HttpServlet {
 
         try {
             Libro libro = new Libro();
-            libro.setTitulo(titulo.trim());
-            libro.setAutor(autor.trim());
-            libro.setSerialInterno(serialInterno.trim());
+            libro.setTitulo(titulo);
+            libro.setAutor(autor);
+            libro.setSerialInterno(serialInterno);
             libro.setStockTotal(stockTotal);
             libro.setStockDisponible(stockTotal);
 
@@ -156,11 +160,10 @@ public class DashboardServlet extends HttpServlet {
     private void prestarLibro(HttpServletRequest request, HttpSession session) {
         try {
             int id = Integer.parseInt(request.getParameter("id"));
-            String nombreLector = request.getParameter("nombreLector");
-            String rutLector = request.getParameter("rutLector");
+            String nombreLector = normalizar(request.getParameter("nombreLector"));
+            String rutLector = normalizar(request.getParameter("rutLector"));
 
-            if (nombreLector == null || nombreLector.trim().isEmpty()
-                    || rutLector == null || rutLector.trim().isEmpty()) {
+            if (nombreLector.isEmpty() || rutLector.isEmpty()) {
                 session.setAttribute("mensajeError", "Debes ingresar nombre y rut para el prestamo.");
                 return;
             }
@@ -179,8 +182,8 @@ public class DashboardServlet extends HttpServlet {
                     libro.getId(),
                     libro.getTitulo(),
                     libro.getSerialInterno(),
-                    nombreLector.trim(),
-                    rutLector.trim()
+                    nombreLector,
+                    rutLector
                 );
 
                 movimientoDAO.registrarMovimiento(
@@ -190,8 +193,8 @@ public class DashboardServlet extends HttpServlet {
                     "PRESTAMO",
                     1,
                     obtenerUsuarioSesion(session),
-                    rutLector.trim(),
-                    "Prestado a " + nombreLector.trim()
+                    rutLector,
+                    "Prestado a " + nombreLector
                 );
 
                 session.setAttribute("mensajeOk", "Prestamo registrado correctamente.");
@@ -207,10 +210,10 @@ public class DashboardServlet extends HttpServlet {
     private void regresarLibro(HttpServletRequest request, HttpSession session) {
         try {
             int id = Integer.parseInt(request.getParameter("id"));
-            String rutDevolucion = request.getParameter("rutDevolucion");
-            String observacionRegreso = request.getParameter("observacionRegreso");
+            String rutDevolucion = normalizar(request.getParameter("rutDevolucion"));
+            String observacionRegreso = normalizar(request.getParameter("observacionRegreso"));
 
-            if (rutDevolucion == null || rutDevolucion.trim().isEmpty()) {
+            if (rutDevolucion.isEmpty()) {
                 session.setAttribute("mensajeError", "Debes ingresar el rut para registrar el regreso.");
                 return;
             }
@@ -222,7 +225,7 @@ public class DashboardServlet extends HttpServlet {
                 return;
             }
 
-            Prestamo prestamoActivo = prestamoDAO.buscarPrestamoActivoPorLibroYRut(id, rutDevolucion.trim());
+            Prestamo prestamoActivo = prestamoDAO.buscarPrestamoActivoPorLibroYRut(id, rutDevolucion);
 
             if (prestamoActivo == null) {
                 session.setAttribute("mensajeError", "No existe un prestamo activo para ese serial y rut.");
@@ -234,13 +237,13 @@ public class DashboardServlet extends HttpServlet {
             if (actualizado) {
                 prestamoDAO.cerrarPrestamo(
                     prestamoActivo.getId(),
-                    rutDevolucion.trim(),
-                    observacionRegreso != null ? observacionRegreso.trim() : ""
+                    rutDevolucion,
+                    observacionRegreso
                 );
 
                 String observacionMovimiento = "Regreso de ejemplar";
-                if (observacionRegreso != null && !observacionRegreso.trim().isEmpty()) {
-                    observacionMovimiento += " | Obs: " + observacionRegreso.trim();
+                if (!observacionRegreso.isEmpty()) {
+                    observacionMovimiento += " | Obs: " + observacionRegreso;
                 }
 
                 movimientoDAO.registrarMovimiento(
@@ -272,5 +275,17 @@ public class DashboardServlet extends HttpServlet {
 
         Object user = session.getAttribute("usuarioLogueado");
         return user != null ? user.toString() : "Sistema";
+    }
+
+    private HttpSession obtenerSesionAutenticada(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("usuarioLogueado") == null) {
+            return null;
+        }
+        return session;
+    }
+
+    private String normalizar(String valor) {
+        return valor == null ? "" : valor.trim();
     }
 }

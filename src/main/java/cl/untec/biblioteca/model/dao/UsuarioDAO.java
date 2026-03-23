@@ -12,7 +12,7 @@ public class UsuarioDAO {
 
     // Retorna el usuario cuando las credenciales coinciden; si no, devuelve null.
     public Usuario autenticar(String username, String password) {
-        String sql = "SELECT id, username, password, nombre, rol FROM usuarios WHERE username = ? AND password = ?";
+        String sql = "SELECT id, username, nombre, rol FROM usuarios WHERE username = ? AND password = ?";
 
         try (Connection conn = ConexionDB.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -25,7 +25,6 @@ public class UsuarioDAO {
                     Usuario usuario = new Usuario();
                     usuario.setId(rs.getInt("id"));
                     usuario.setUsername(rs.getString("username"));
-                    usuario.setPassword(rs.getString("password"));
                     usuario.setNombre(rs.getString("nombre"));
                     usuario.setRol(rs.getString("rol"));
                     return usuario;
